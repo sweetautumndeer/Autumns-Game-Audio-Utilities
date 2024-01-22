@@ -5,22 +5,23 @@ using UnityEngine;
 using FMODUnity;
 using FMOD.Studio;
 
+[Serializable]
 public class AudioEvent
 {
-    private EventReference _audioEvent;
+    [SerializeField] private EventReference _event;
     private EventInstance _eventInstance;
 
-    EVENT_CALLBACK eventCallback;
-    private Dictionary<EVENT_CALLBACK_TYPE, List<Action>> callbackHandler = new();
+    private EVENT_CALLBACK eventCallback;
+    private Dictionary<EVENT_CALLBACK_TYPE, List<Action>> callbackHandler;
 
-    AudioEvent(EventReference _audioEvent)
+    public AudioEvent()
     {
-        this._audioEvent = _audioEvent;
         InitCallbackHandler();
     }
 
     private void InitCallbackHandler()
     {
+        callbackHandler = new Dictionary<EVENT_CALLBACK_TYPE, List<Action>>();
         eventCallback = new EVENT_CALLBACK(Callback);
     }
 
@@ -32,10 +33,10 @@ public class AudioEvent
 
     public void Play()
     {
-        if (_audioEvent.IsNull)
+        if (_event.IsNull)
             return;
 
-        _eventInstance = RuntimeManager.CreateInstance(_audioEvent);
+        _eventInstance = RuntimeManager.CreateInstance(_event);
         _eventInstance.setCallback(eventCallback);
         _eventInstance.start();
     }
@@ -81,37 +82,49 @@ public class AudioEvent
     #region Abstracted Callback Functions
     public void OnStart(Action callback)
     {
-        callbackHandler[EVENT_CALLBACK_TYPE.STARTED].Add(callback);
+        SetCallback(EVENT_CALLBACK_TYPE.STARTED, callback);
     }
 
     public void OnRestart(Action callback)
     {
-        callbackHandler[EVENT_CALLBACK_TYPE.RESTARTED].Add(callback);
+        SetCallback(EVENT_CALLBACK_TYPE.RESTARTED, callback);
     }
 
     public void OnComplete(Action callback)
     {
-        callbackHandler[EVENT_CALLBACK_TYPE.STOPPED].Add(callback);
+        SetCallback(EVENT_CALLBACK_TYPE.STOPPED, callback);
     }
 
     public void OnBeat(Action callback)
     {
-        callbackHandler[EVENT_CALLBACK_TYPE.TIMELINE_MARKER].Add(callback);
+        SetCallback(EVENT_CALLBACK_TYPE.TIMELINE_MARKER, callback);
     }
 
     public void OnMarker(Action callback)
     {
-        callbackHandler[EVENT_CALLBACK_TYPE.TIMELINE_BEAT].Add(callback);
+        SetCallback(EVENT_CALLBACK_TYPE.TIMELINE_BEAT, callback);
     }
     #endregion
 
     public void SetCallback(EVENT_CALLBACK_TYPE type, Action callback)
     {
+        callbackHandler.TryGetValue(type, out List<Action> value);
+        if (value == null)
+        {
+            callbackHandler.Add(type, new List<Action>());
+        }
+
         callbackHandler[type].Add(callback);
     }
 
     private FMOD.RESULT Callback(EVENT_CALLBACK_TYPE type, IntPtr _event, IntPtr parameters)
     {
+        callbackHandler.TryGetValue(type, out List<Action> value);
+        if (value == null)
+        {
+            return FMOD.RESULT.OK;
+        }
+
         foreach (Action action in callbackHandler[type])
         {
             action.Invoke();
